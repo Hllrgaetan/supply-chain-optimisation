@@ -1,0 +1,24 @@
+# Compilation Java
+*.class
+out/
+bin/
+
+# Dépendances installées localement (JavaFX SDK, JDK du script start)
+lib/
+.runtime/
+
+# Résultats générés par Main
+results.csv
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Systèmes
+.DS_Store
+Thumbs.db
+desktop.ini
