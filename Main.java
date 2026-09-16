@@ -7,11 +7,12 @@ import java.util.Random;
 public class Main {
 
     public static void main(String[] args) {
+        String folder;
         if (args.length < 1) {
-            String folder = small_n6_m2_setup9_rep1;
+            folder = "Instances/small_n6_m2_setup9_rep1";
         }
         else{
-            String folder = args[0];
+            folder = args[0];
         }
 
         
