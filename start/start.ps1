@@ -7,6 +7,11 @@
     puis compile les sources et lance l'interface.
 #>
 
+param(
+    # Passé par start.bat, qui gère lui-même la pause en cas d'erreur
+    [switch]$FromLauncher
+)
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -21,6 +26,20 @@ $JavaFxUrl = "https://download2.gluonhq.com/openjfx/$JavaFxVersion/openjfx-$($Ja
 
 function Write-Step([string]$Message) {
     Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+# Lance un exécutable natif. Les arguments sont passés via un tableau de chaînes : Windows PowerShell 5.1
+# découpe sinon les arguments du type -Dfile.encoding=UTF-8 au niveau du point, et la sortie d'erreur
+# des outils Java ne doit pas être transformée en exception.
+function Invoke-Native([string]$Exe, [string[]]$Arguments) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Exe $Arguments | Out-Host
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 function Get-JavaMajor([string]$Javac) {
@@ -96,17 +115,24 @@ try {
     # 3. Compilation
     $javac = Join-Path $jdk 'bin\javac.exe'
     $java = Join-Path $jdk 'bin\java.exe'
-    $sources = Get-ChildItem -Path $Root -Filter '*.java' | ForEach-Object { $_.FullName }
+    $sources = @(Get-ChildItem -Path $Root -Filter '*.java' | ForEach-Object { $_.FullName })
     Write-Step 'Compilation des sources'
-    & $javac -encoding UTF-8 --module-path $JavaFxLib --add-modules javafx.controls -d $Root @sources
-    if ($LASTEXITCODE -ne 0) { throw 'La compilation a échoué.' }
+    $code = Invoke-Native $javac (@('-encoding', 'UTF-8', '--module-path', $JavaFxLib,
+            '--add-modules', 'javafx.controls', '-d', $Root) + $sources)
+    if ($code -ne 0) { throw "La compilation a échoué (code $code)." }
 
     # 4. Lancement
-    Write-Step 'Lancement de Gantt Simulator'
-    & $java -Dfile.encoding=UTF-8 --module-path $JavaFxLib --add-modules javafx.controls -cp $Root GanttSimulator
-    exit $LASTEXITCODE
+    Write-Step 'Lancement de Gantt Simulator (cette fenêtre reste ouverte tant que le logiciel tourne)'
+    $code = Invoke-Native $java @('-Dfile.encoding=UTF-8', '--module-path', $JavaFxLib,
+            '--add-modules', 'javafx.controls', '-cp', $Root, 'GanttSimulator')
+    if ($code -ne 0) { throw "Gantt Simulator s'est arrêté avec le code $code." }
+    exit 0
 } catch {
     Write-Host ''
     Write-Host "ERREUR : $($_.Exception.Message)" -ForegroundColor Red
+    if (-not $FromLauncher) {
+        Write-Host ''
+        Read-Host 'Appuyez sur Entrée pour fermer'
+    }
     exit 1
 }
